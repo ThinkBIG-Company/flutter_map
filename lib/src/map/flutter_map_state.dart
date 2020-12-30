@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:async/async.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map/src/core/point.dart';
@@ -110,6 +112,50 @@ class FlutterMapState extends MapGestureMixin {
 
       Widget mapRoot;
 
+      GestureArenaTeam mapGestureTeam = GestureArenaTeam();
+
+      Widget gestureDetector = RawGestureDetector(
+        gestures: <Type, GestureRecognizerFactory>{
+          ScaleGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<ScaleGestureRecognizer>(
+                  () => ScaleGestureRecognizer(),
+                  (ScaleGestureRecognizer instance) {
+            mapGestureTeam.captain = instance;
+            instance.team ??= mapGestureTeam;
+            instance
+              ..onStart = handleScaleStart
+              ..onUpdate = handleScaleUpdate
+              ..onEnd = handleScaleEnd;
+          }),
+          TapGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+            () => TapGestureRecognizer(),
+            (TapGestureRecognizer instance) {
+              instance.team ??= mapGestureTeam;
+              instance
+                ..onTapDown = _positionedTapController.onTapDown
+                ..onTapUp = handleOnTapUp
+                ..onTap = _positionedTapController.onTap;
+            },
+          ),
+          LongPressGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+                  () => LongPressGestureRecognizer(),
+                  (LongPressGestureRecognizer instance) {
+            instance.team ??= mapGestureTeam;
+            instance.onLongPress = _positionedTapController.onLongPress;
+          }),
+          VerticalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<
+                  VerticalDragGestureRecognizer>(
+              () => VerticalDragGestureRecognizer(),
+              (VerticalDragGestureRecognizer instance) {
+            instance.team ??= mapGestureTeam;
+            instance.onUpdate = (_) {};
+          })
+        },
+        child: layerStack,
+      );
+
       if (!options.interactive) {
         mapRoot = layerStack;
       } else {
@@ -119,16 +165,7 @@ class FlutterMapState extends MapGestureMixin {
           onTap: handleTap,
           onLongPress: handleLongPress,
           onDoubleTap: handleDoubleTap,
-          child: GestureDetector(
-            onScaleStart: handleScaleStart,
-            onScaleUpdate: handleScaleUpdate,
-            onScaleEnd: handleScaleEnd,
-            onTap: _positionedTapController.onTap,
-            onLongPress: _positionedTapController.onLongPress,
-            onTapDown: _positionedTapController.onTapDown,
-            onTapUp: handleOnTapUp,
-            child: layerStack,
-          ),
+          child: gestureDetector,
         );
       }
 
@@ -190,7 +227,6 @@ class FlutterMapState extends MapGestureMixin {
     }
     assert(false, """
 Can't find correct layer for $options. Perhaps when you create your FlutterMap you need something like this:
-
     options: new MapOptions(plugins: [MyFlutterMapPlugin()])""");
     return null;
   }
